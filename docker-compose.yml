@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  clawcodex-secure:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clawcodex-secure:latest
+    container_name: clawcodex-secure
+    # Hardened security profile
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=128M
+    # No network by default (MCP stdio transport)
+    network_mode: none
+    # Workspace mounts (read-only except explicit output dirs)
+    volumes:
+      - /home/jstur/development:/workspace:ro
+      - /home/jstur/development/career-ops/output:/workspace/career-ops/output:rw
+      - ./config/permission-hardened.json:/home/clawcodex/.clawcodex/config.json:ro
+      - clawcodex-data:/home/clawcodex/.clawcodex
+    # MCP stdio server — communicates over stdin/stdout
+    stdin_open: true
+    command:
+      - "mcp"
+      - "serve"
+      - "--workspace"
+      - "/workspace"
+      - "--permission-mode"
+      - "plan"
+      - "--config"
+      - "/home/clawcodex/.clawcodex/config.json"
+
+  # Alternative: network-enabled variant for LLM API access
+  clawcodex-api:
+    profiles: ["api"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clawcodex-secure:latest
+    container_name: clawcodex-api
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=128M
+    # Host network for LLM API access
+    network_mode: host
+    volumes:
+      - /home/jstur/development:/workspace:ro
+      - /home/jstur/development/career-ops/output:/workspace/career-ops/output:rw
+      - ./config/permission-hardened.json:/home/clawcodex/.clawcodex/config.json:ro
+      - clawcodex-data:/home/clawcodex/.clawcodex
+    stdin_open: true
+    command:
+      - "-p"
+      - "${CLAWCODEX_PROMPT:-Summarize the workspace structure}"
+
+volumes:
+  clawcodex-data:

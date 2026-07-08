@@ -1,0 +1,57 @@
+{
+  "default_provider": "deepseek",
+  "providers": {
+    "deepseek": {
+      "api_key": "${DEEPSEEK_API_KEY}",
+      "base_url": "https://api.deepseek.com",
+      "default_model": "deepseek-chat"
+    },
+    "openrouter": {
+      "api_key": "${OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "default_model": "deepseek/deepseek-chat"
+    },
+    "gemini": {
+      "api_key": "${GEMINI_API_KEY}",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta",
+      "default_model": "gemini-2.5-pro"
+    }
+  },
+  "permissions": {
+    "mode": "plan",
+    "disableBypassPermissionsMode": true,
+    "allowed_tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Write",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "default_deny": [
+      "Bash(sudo:*)",
+      "Bash(rm:*)",
+      "Bash(chmod:*)",
+      "Bash(chown:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Write(/etc/*)",
+      "Write(/proc/*)",
+      "Write(/sys/*)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true
+  },
+  "session": {
+    "max_turns": 50,
+    "auto_compact_threshold": 80000
+  },
+  "settings": {
+    "skip_git_status_check": false,
+    "include_workspace_context": true
+  },
+  "env": {}
+}
