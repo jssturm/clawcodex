@@ -20,7 +20,7 @@ services:
     # Workspace mounts (read-only except explicit output dirs)
     volumes:
       - /home/jstur/development:/workspace:ro
-      - /home/jstur/development/career-ops/output:/workspace/career-ops/output:rw
+      - /home/jstur/development/Elevated-Applicant/output:/workspace/Elevated-Applicant/output:rw
       - ./config/permission-hardened.json:/home/clawcodex/.clawcodex/config.json:ro
       - clawcodex-data:/home/clawcodex/.clawcodex
     # MCP stdio server — communicates over stdin/stdout
@@ -54,7 +54,7 @@ services:
     network_mode: host
     volumes:
       - /home/jstur/development:/workspace:ro
-      - /home/jstur/development/career-ops/output:/workspace/career-ops/output:rw
+      - /home/jstur/development/Elevated-Applicant/output:/workspace/Elevated-Applicant/output:rw
       - ./config/permission-hardened.json:/home/clawcodex/.clawcodex/config.json:ro
       - clawcodex-data:/home/clawcodex/.clawcodex
     stdin_open: true

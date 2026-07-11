@@ -7,10 +7,10 @@ WORKSPACE="${CLAWCODEX_WORKSPACE:-/home/jstur/development}"
 CONFIG="${SCRIPT_DIR}/config/permission-hardened.json"
 VENV_PYTHON="${SCRIPT_DIR}/.venv/bin/python3"
 
-# Source API keys from career-ops/.env
-if [ -f /home/jstur/development/career-ops/.env ]; then
+# Source API keys from Elevated-Applicant/.env
+if [ -f /home/jstur/development/Elevated-Applicant/.env ]; then
   set -a
-  source /home/jstur/development/career-ops/.env
+  source /home/jstur/development/Elevated-Applicant/.env
   set +a
 fi
 
