@@ -2,7 +2,7 @@
 description: Three-Failure Rule (Zoo mandate)
 alwaysApply: true
 source: .roo/rules/02-three-failure-rule.md
-syncedAt: 2026-07-27T17:34:09.034Z
+syncedAt: 2026-07-31T15:50:26.484Z
 ---
 
 # Three-Failure Rule
