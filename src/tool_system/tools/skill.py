@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -470,7 +471,35 @@ def _run_legacy_python_skill(name: str, skill_input: dict[str, Any], context: To
     if skills_dir is None:
         return ToolResult(name="Skill", output={"error": "no skills directory found"}, is_error=True)
 
+    # Security: Validate that name contains only safe characters (alphanumeric, underscore, hyphen)
+    # to prevent path traversal attacks. Reject any name containing path separators or traversal sequences.
+    if not re.match(r'^[a-zA-Z0-9_-]+$', name):
+        return ToolResult(
+            name="Skill",
+            output={"error": f"invalid legacy skill name: {name}. Only alphanumeric characters, underscores, and hyphens are allowed."},
+            is_error=True
+        )
+
     py_path = skills_dir / f"{name}.py"
+    
+    # Security: Verify the resolved path is within the skills directory to prevent traversal
+    # even if Path() normalization were to allow it through the regex check above.
+    try:
+        resolved_path = py_path.resolve()
+        resolved_skills_dir = skills_dir.resolve()
+        if not resolved_path.is_relative_to(resolved_skills_dir):
+            return ToolResult(
+                name="Skill",
+                output={"error": f"legacy skill path escapes skills directory: {name}"},
+                is_error=True
+            )
+    except (ValueError, OSError) as e:
+        return ToolResult(
+            name="Skill",
+            output={"error": f"invalid legacy skill path: {name}"},
+            is_error=True
+        )
+    
     if not py_path.exists():
         return ToolResult(name="Skill", output={"error": f"legacy skill not found: {name}"}, is_error=True)
 
