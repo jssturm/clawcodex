@@ -372,9 +372,9 @@ def _build_hook_env(
     from src.utils.subprocess_env import subprocess_env
 
     return {
-        # subprocess_env() scrubs secret vars when CLAUDE_CODE_SUBPROCESS_ENV_SCRUB
-        # is set (anti-exfiltration; parity with TS subprocessEnv at the hook
-        # spawn site) — otherwise a pass-through copy of os.environ.
+        # subprocess_env() scrubs secret vars by default (secure-by-default
+        # anti-exfiltration). Secrets are stripped unless
+        # CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS is explicitly set.
         **subprocess_env(),
         "CLAUDE_HOOK_EVENT": event_name,
         "CLAUDE_PROJECT_DIR": workspace_root,

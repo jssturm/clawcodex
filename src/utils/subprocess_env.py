@@ -1,12 +1,15 @@
 """Subprocess environment scrubbing — port of utils/subprocessEnv.ts.
 
-The canonical "env for a spawned child process" chokepoint. When
-``CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`` is truthy, it strips a fixed set of
-secret env vars (+ their ``INPUT_`` GitHub-Action twins) from the child's
-environment — an anti-exfiltration control so a prompt-injected Bash command
-cannot read a credential via shell expansion (``${ANTHROPIC_API_KEY}``) in a
-subprocess. Gated because ``claude-code-action`` sets the flag; a plain local
-CLI leaves the env untouched (parity with TS).
+The canonical "env for a spawned child process" chokepoint. By default, it
+strips a fixed set of secret env vars (+ their ``INPUT_`` GitHub-Action twins)
+from the child's environment — an anti-exfiltration control so a prompt-injected
+Bash command cannot read a credential via shell expansion
+(``${ANTHROPIC_API_KEY}``) in a subprocess. This is a secure-by-default posture.
+
+The scrubbing can be disabled by setting ``CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS``
+to a truthy value, which passes through the parent environment unchanged. This
+opt-out is provided for local development scenarios where secret inheritance may
+be intentional, but the default behavior protects against exfiltration attacks.
 
 TS's ``subprocessEnv`` also merges the upstream-proxy env via
 ``registerUpstreamProxyEnvFn`` (subprocessEnv.ts) — an indirection so this
@@ -77,10 +80,15 @@ def _is_env_truthy(value: str | None) -> bool:
 def subprocess_env(base: dict[str, str] | None = None) -> dict[str, str]:
     """Return the environment a child process should inherit.
 
-    ``base`` defaults to a copy of ``os.environ``. When
-    ``CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`` is truthy, the scrub set (+ ``INPUT_``
-    twins) is removed; otherwise ``base`` is returned unchanged (parity with
-    TS's non-gated pass-through). Always returns a fresh dict."""
+    ``base`` defaults to a copy of ``os.environ``. By default (secure-by-default),
+    the scrub set (+ ``INPUT_`` twins) is removed to prevent secret exfiltration.
+    Set ``CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS`` to a truthy value to opt out
+    and pass through secrets unchanged (for local development scenarios where
+    secret inheritance is intentional). Always returns a fresh dict.
+    
+    For backwards compatibility, ``CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`` is also
+    recognized as an explicit opt-in to scrubbing (takes precedence over the
+    allow-secrets flag)."""
     # Upstream-proxy recipe first (no-op unless a provider is registered); the
     # SCRUB runs LAST so it stays authoritative — a provider can never
     # re-introduce a scrubbed secret. Mirrors TS subprocessEnv.ts:85-98 exactly
@@ -99,11 +107,23 @@ def subprocess_env(base: dict[str, str] | None = None) -> dict[str, str]:
             proxy_env = {}
 
     env = dict(os.environ if base is None else base)
-    if not _is_env_truthy(env.get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB")):
+    
+    # Determine whether to scrub secrets (secure by default):
+    # 1. If CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is explicitly set to truthy → scrub (backwards compat)
+    # 2. If CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS is truthy → don't scrub (opt-out)
+    # 3. Otherwise (default) → scrub (secure by default)
+    explicit_scrub = _is_env_truthy(env.get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"))
+    allow_secrets = _is_env_truthy(env.get("CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS"))
+    
+    should_scrub = explicit_scrub or not allow_secrets
+    
+    if not should_scrub:
+        # Opt-out path: pass through secrets unchanged
         if proxy_env:
-            env.update(proxy_env)  # non-gated pass-through + proxy merge
+            env.update(proxy_env)
         return env
-    # Scrub gate ON: merge proxy, THEN strip the secret set (+ INPUT_ twins) —
+    
+    # Default secure path: merge proxy, THEN strip the secret set (+ INPUT_ twins) —
     # so even a misbehaving provider can't leak a scrubbed key into the child.
     env.update(proxy_env)
     for key in _GHA_SUBPROCESS_SCRUB:

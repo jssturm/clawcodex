@@ -96,8 +96,9 @@ def _run_bash_with_abort(
         popen_kwargs["start_new_session"] = True
 
     if "env" not in popen_kwargs:
-        # Scrub secret env vars when CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set
-        # (anti-exfiltration; parity with TS subprocessEnv at the Bash site).
+        # Scrub secret env vars by default (secure-by-default anti-exfiltration).
+        # subprocess_env() strips secrets unless CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS
+        # is explicitly set.
         from src.utils.subprocess_env import subprocess_env
 
         popen_kwargs["env"] = subprocess_env()
