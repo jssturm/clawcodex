@@ -81,9 +81,10 @@ def spawn_background_bash(
     proc = subprocess.Popen(
         ["bash", "-lc", wrapped],
         cwd=str(cwd),
-        # Scrub secret env vars when CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set,
-        # so a prompt-injected background command can't exfiltrate a credential
-        # via ${ANTHROPIC_API_KEY} (parity with TS subprocessEnv).
+        # Scrub secret env vars by default (secure-by-default), so a
+        # prompt-injected background command can't exfiltrate a credential
+        # via ${ANTHROPIC_API_KEY}. subprocess_env() strips secrets unless
+        # CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS is explicitly set.
         env=subprocess_env(),
         stdin=subprocess.DEVNULL,
         stdout=output_handle,

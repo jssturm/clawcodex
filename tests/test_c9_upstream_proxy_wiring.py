@@ -24,14 +24,14 @@ def _clear_registration():
 
 
 class TestDefaultNoOp:
-    def test_no_provider_registered_env_unchanged(self):
-        # THE default path: no provider → subprocess_env is byte-for-byte the base
-        base = {"PATH": "/usr/bin", "FOO": "bar"}
+    def test_no_provider_registered_env_unchanged_with_allow_secrets(self):
+        # With ALLOW_SECRETS set, no provider → subprocess_env is byte-for-byte the base
+        base = {"PATH": "/usr/bin", "FOO": "bar", "CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS": "1"}
         assert subprocess_env(base) == base
 
     def test_provider_returning_empty_is_noop(self):
         register_upstream_proxy_env_fn(lambda: {})
-        base = {"PATH": "/usr/bin"}
+        base = {"PATH": "/usr/bin", "CLAUDE_CODE_SUBPROCESS_ENV_ALLOW_SECRETS": "1"}
         assert subprocess_env(base) == base
 
 
@@ -39,6 +39,7 @@ class TestProxyMerge:
     def test_registered_provider_merges_proxy_vars(self):
         register_upstream_proxy_env_fn(
             lambda: {"HTTPS_PROXY": "http://127.0.0.1:9", "SSL_CERT_FILE": "/ca.pem"})
+        # Note: With secure-by-default, proxy vars are merged but other secrets are scrubbed
         out = subprocess_env({"PATH": "/usr/bin"})
         assert out["HTTPS_PROXY"] == "http://127.0.0.1:9"
         assert out["SSL_CERT_FILE"] == "/ca.pem"
@@ -58,6 +59,7 @@ class TestProxyMerge:
             raise RuntimeError("proxy down")
         register_upstream_proxy_env_fn(_boom)
         # must not raise — spawning can't be broken by a proxy-env failure
+        # Note: With secure-by-default, secrets would be scrubbed but PATH retained
         out = subprocess_env({"PATH": "/usr/bin"})
         assert out["PATH"] == "/usr/bin"
 
@@ -81,7 +83,7 @@ class TestHalfRegisteredSafety:
     def test_failed_init_is_safe_disabled_state_injects_nothing(self, monkeypatch):
         # Register-first (TS parity): a failed init CAN leave the provider
         # registered, but that's safe — the disabled _state returns {} on a
-        # clean env, so subprocess_env injects nothing.
+        # clean env, so subprocess_env injects nothing (beyond default scrubbing).
         import src.entrypoints.agent_server_cli as cli
         from src.upstreamproxy.upstream_proxy import reset_for_tests
         from src.utils import subprocess_env as se
@@ -97,17 +99,29 @@ class TestHalfRegisteredSafety:
         monkeypatch.setattr(
             "src.upstreamproxy.upstream_proxy.init_upstream_proxy", _boom)
         asyncio.run(cli._maybe_init_upstream_proxy())
-        # fail-open; even if the provider registered, subprocess_env is a no-op
+        # fail-open; even if the provider registered, subprocess_env only does default scrubbing
+        # (PATH is not a secret, so it passes through)
         assert subprocess_env({"PATH": "/usr/bin"}) == {"PATH": "/usr/bin"}
         se.register_upstream_proxy_env_fn(None)
 
     def test_scrub_is_authoritative_over_a_misbehaving_provider(self):
         # MAJOR-A / TS parity: the scrub runs LAST, so even a provider that
         # (wrongly) returns a scrubbed secret can't leak it into the child.
+        # Note: With secure-by-default, scrubbing happens by default, but we
+        # explicitly set the flag to test the precedence logic.
         register_upstream_proxy_env_fn(lambda: {"ANTHROPIC_API_KEY": "leaked",
                                                  "HTTPS_PROXY": "http://127.0.0.1:9"})
         out = subprocess_env({"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"})
         assert "ANTHROPIC_API_KEY" not in out       # scrub wins over the provider
+        assert out["HTTPS_PROXY"] == "http://127.0.0.1:9"  # proxy var survives
+        register_upstream_proxy_env_fn(None)
+    
+    def test_scrub_by_default_blocks_misbehaving_provider(self):
+        # With secure-by-default, even without explicit SCRUB flag, secrets are blocked
+        register_upstream_proxy_env_fn(lambda: {"ANTHROPIC_API_KEY": "leaked",
+                                                 "HTTPS_PROXY": "http://127.0.0.1:9"})
+        out = subprocess_env({})
+        assert "ANTHROPIC_API_KEY" not in out       # scrubbed by default
         assert out["HTTPS_PROXY"] == "http://127.0.0.1:9"  # proxy var survives
         register_upstream_proxy_env_fn(None)
 
